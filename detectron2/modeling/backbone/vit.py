@@ -22,8 +22,8 @@ from .utils import (
 
 try:
     import xformers.ops as xops
-except:
-    pass
+except Exception:
+    xops = None
 
 try:
     from apex.normalization import FusedLayerNorm
@@ -117,18 +117,16 @@ class Attention(nn.Module):
         q = self.rope(q).type_as(v)
         k = self.rope(k).type_as(v)
 
-        if self.xattn:
+        if self.xattn and xops is not None:
             q = q.permute(0, 2, 1, 3)   # B, num_heads, N, C -> B, N, num_heads, C
             k = k.permute(0, 2, 1, 3)
             v = v.permute(0, 2, 1, 3)
-            
+
             x = xops.memory_efficient_attention(q, k, v)
             x = x.reshape(B, N, -1)
         else:
-            q = q * self.scale
-            attn = (q @ k.transpose(-2, -1))
-            attn = attn.softmax(dim=-1).type_as(x)
-            x = (attn @ v).transpose(1, 2).reshape(B, N, -1)
+            x = F.scaled_dot_product_attention(q, k, v, scale=self.scale)
+            x = x.transpose(1, 2).reshape(B, N, -1)
 
         x = self.proj(x)
         x = x.view(B, H, W, C)

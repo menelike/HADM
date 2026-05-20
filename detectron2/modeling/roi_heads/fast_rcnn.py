@@ -13,8 +13,10 @@ from detectron2.modeling.box_regression import Box2BoxTransform, _dense_box_regr
 from detectron2.structures import Boxes, Instances
 from detectron2.utils.events import get_event_storage
 
-import mmcv
-from mmcv.ops import soft_nms
+try:
+    from mmcv.ops import soft_nms
+except Exception:
+    soft_nms = None
 
 
 __all__ = ["fast_rcnn_inference", "FastRCNNOutputLayers"]
@@ -192,6 +194,10 @@ def fast_rcnn_inference_single_image(
 
     # optionally use soft-nms here
     if use_soft_nms:
+        if soft_nms is None:
+            raise RuntimeError(
+                "soft_nms requires mmcv-full, but only mmcv/mmcv-lite is installed"
+            )
         if not class_wise:
             dets, keep = soft_nms(boxes=boxes, scores=scores, iou_threshold=iou_threshold,
                                   sigma=sigma, min_score=1e-3, method=method)

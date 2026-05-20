@@ -12,6 +12,13 @@ from detectron2.utils.file_io import PathManager
 from .c2_model_loading import align_and_update_state_dicts
 
 
+def _torch_load_trusted_checkpoint(file, **kwargs):
+    try:
+        return torch.load(file, weights_only=False, **kwargs)
+    except TypeError:
+        return torch.load(file, **kwargs)
+
+
 class DetectionCheckpointer(Checkpointer):
     """
     Same as :class:`Checkpointer`, but is able to:
@@ -74,7 +81,7 @@ class DetectionCheckpointer(Checkpointer):
         elif filename.endswith(".pyth"):
             # assume file is from pycls; no one else seems to use the ".pyth" extension
             with PathManager.open(filename, "rb") as f:
-                data = torch.load(f)
+                data = _torch_load_trusted_checkpoint(f)
             assert (
                 "model_state" in data
             ), f"Cannot load .pyth file {filename}; pycls checkpoints must contain 'model_state'."
@@ -85,7 +92,10 @@ class DetectionCheckpointer(Checkpointer):
             }
             return {"model": model_state, "__author__": "pycls", "matching_heuristics": True}
 
-        loaded = super()._load_file(filename)  # load native pth checkpoint
+        with PathManager.open(filename, "rb") as f:
+            loaded = _torch_load_trusted_checkpoint(
+                f, map_location=torch.device("cpu")
+            )  # load native pth checkpoint
         if "model" not in loaded:
             loaded = {"model": loaded}
         loaded["matching_heuristics"] = True

@@ -5,7 +5,10 @@ import os.path
 import warnings
 
 from pycocotools.coco import COCO
-from mmcv.ops import soft_nms
+try:
+    from mmcv.ops import soft_nms
+except Exception:
+    soft_nms = None
 
 import numpy as np
 from contextlib import contextmanager
@@ -391,6 +394,10 @@ class GeneralizedRCNNWithTTA(nn.Module):
                 # post filtering if needed
                 use_soft_nms_before_merge = False
                 if use_soft_nms_before_merge:
+                    if soft_nms is None:
+                        raise RuntimeError(
+                            "soft_nms requires mmcv-full, but only mmcv/mmcv-lite is installed"
+                        )
                     # Apply NMS for each class independently
                     boxes = result.pred_boxes
                     filter_inds = result.pred_classes
